@@ -1,25 +1,34 @@
 package com.hotelbooking.order_service.dto;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.time.LocalDate;
 
+import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class OrderRequest {
-   
-    private BigDecimal totalAmount;
-    private BigDecimal finalAmount;
-    private String paymentMethod;
-    private List<OrderItemRequest> items;
-    private List<OrderDiscountRequest> discounts;
-    public BigDecimal getTotalAmount() {
-        throw new UnsupportedOperationException("Unimplemented method 'getTotalAmount'");
-    }
-    public BigDecimal getFinalAmount() {
-        throw new UnsupportedOperationException("Unimplemented method 'getFinalAmount'");
-    }
-    public String getPaymentMethod() {
-        throw new UnsupportedOperationException("Unimplemented method 'getPaymentMethod'");
-    }
-    public Object getItems() {
-        throw new UnsupportedOperationException("Unimplemented method 'getItems'");
-    }
+    
+    @NotNull(message = "User ID is required")
+    private Long userId;
+    
+    @NotNull(message = "Room ID is required")
+    private Long roomId;
+    
+    @NotNull(message = "Check-in date is required")
+    @Future(message = "Check-in date must be in the future")
+    private LocalDate checkIn;
+    
+    @NotNull(message = "Check-out date is required")
+    private LocalDate checkOut;
+    
+    @NotNull(message = "Total price is required")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Total price must be greater than 0")
+    private BigDecimal totalPrice;
 }

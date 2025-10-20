@@ -1,82 +1,165 @@
 package com.hotelbooking.order_service.service;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import com.hotelbooking.order_service.dto.OrderRequest;
+import com.hotelbooking.order_service.dto.OrderResponse;
+import com.hotelbooking.order_service.dto.OrderStatus;
+import com.hotelbooking.order_service.exception.OrderNotFoundException;
+import com.hotelbooking.order_service.exception.RoomNotAvailableException;
+import com.hotelbooking.order_service.model.Order;
+import com.hotelbooking.order_service.repository.OrderRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.List;
 import java.util.stream.Collectors;
 
-import com.hotelbooking.order_service.repository.OrderRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-
-import com.hotelbooking.order_service.model.Order;
-import com.hotelbooking.order_service.model.OrderDiscount;
-import com.hotelbooking.order_service.model.OrderItem;
-import lombok.RequiredArgsConstructo;
-import reactor.core.publisher.Mono;
-
 @Service
+@RequiredArgsConstructor
 public class OrderService {
-
-    private final WebClient.Builder webClientBuilder;
 
     private final OrderRepository orderRepository;
 
-    public Mono<String> placeOrder(String authHeader, String orderData) {
-        String userServiceUrl = "http://user-service/api/user/current";
+    @Transactional
+    public OrderResponse createOrder(OrderRequest request) {
+        // Validate dates
+        if (request.getCheckOut().isBefore(request.getCheckIn()) ||
+                request.getCheckOut().isEqual(request.getCheckIn())) {
+            throw new IllegalArgumentException("Check-out date must be after check-in date");
+        }
 
-        return webClientBuilder.build()
-                .get()
-                .uri(userServiceUrl)
-                .header("Authorization", authHeader)
-                .retrieve()
-                .bodyToMono(String.class)
-                .flatMap(userJson -> {
-                    String userId = extractUserId(userJson);
+        // Check if room is available
+        Long conflictingOrders = orderRepository.countConflictingOrders(
+                request.getRoomId(),
+                request.getCheckIn(),
+                request.getCheckOut());
 
-                    Order order = new Order();
-                    order.setUserId(userId);
-                    order.setTotalAmount(orderData.getTotalAmount());
-                    order.setFinalAmount(orderData.getFinalAmount());
-                    order.setPaymentMethod(orderData.getPaymentMethod());
-                    order.setCreatedAt(LocalDateTime.now());
+        if (conflictingOrders > 0) {
+            throw new RoomNotAvailableException("Room is not available for selected dates");
+        }
 
-                    var items = orderData.getItems().stream()
-                            .map(i -> OrderItem.builder()
-                                    .order(order)
-                                    .zoneId(i.getZoneId())
-                                    .ticketTypeId(i.getTicketTypeId())
-                                    .quantity(i.getQuantity())
-                                    .unitPrice(i.getUnitPrice())
-                                    .subtotal(i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity())))
-                                    .build())
-                            .collect(Collectors.toList());
-                    order.setItems(items);
+        // Create order
+        Order order = Order.builder()
+                .userId(request.getUserId())
+                .roomId(request.getRoomId())
+                .checkIn(request.getCheckIn())
+                .checkOut(request.getCheckOut())
+                .totalPrice(request.getTotalPrice())
+                .status(OrderStatus.PENDING)
+                .build();
 
-                    var discounts = orderData.getDiscounts().stream()
-                            .map(d -> OrderDiscount.builder()
-                                    .order(order)
-                                    .discountId(d.getDiscountId())
-                                    .appliedValue(d.getAppliedValue())
-                                    .createdAt(LocalDateTime.now())
-                                    .build())
-                            .collect(Collectors.toList());
-                    order.setDiscounts(discounts);
-
-                    orderRepository.save(order);
-                    return Mono.just(" Đặt hàng thành công cho user ID: " + userId);
-                })
-                .onErrorResume(e -> Mono.just(" Lỗi khi đặt hàng: " + e.getMessage()));
+        Order savedOrder = orderRepository.save(order);
+        return mapToResponse(savedOrder);
     }
 
+    public OrderResponse getOrderById(Long id) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException("Order not found with id: " + id));
+        return mapToResponse(order);
+    }
 
-     private String extractUserId(String userJson) {
-       
-        try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            return mapper.readTree(userJson).get("id").asText();
-        } catch (Exception e) {
-            throw new RuntimeException("Không thể đọc userId từ user_service: " + e.getMessage());
+    public List<OrderResponse> getAllOrders() {
+        return orderRepository.findAll().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    public List<OrderResponse> getOrdersByUserId(Long userId) {
+        return orderRepository.findByUserId(userId).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    public List<OrderResponse> getOrdersByStatus(OrderStatus status) {
+        return orderRepository.findByStatus(status).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public OrderResponse updateOrder(Long id, OrderRequest request) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException("Order not found with id: " + id));
+
+        // Validate dates
+        if (request.getCheckOut().isBefore(request.getCheckIn()) ||
+                request.getCheckOut().isEqual(request.getCheckIn())) {
+            throw new IllegalArgumentException("Check-out date must be after check-in date");
         }
+
+        // Check if room is available (excluding current order)
+        Long conflictingOrders = orderRepository.countConflictingOrders(
+                request.getRoomId(),
+                request.getCheckIn(),
+                request.getCheckOut());
+
+        // If the room is different or dates changed, check availability
+        if (!order.getRoomId().equals(request.getRoomId()) ||
+                !order.getCheckIn().equals(request.getCheckIn()) ||
+                !order.getCheckOut().equals(request.getCheckOut())) {
+            if (conflictingOrders > 0) {
+                throw new RoomNotAvailableException("Room is not available for selected dates");
+            }
+        }
+
+        order.setUserId(request.getUserId());
+        order.setRoomId(request.getRoomId());
+        order.setCheckIn(request.getCheckIn());
+        order.setCheckOut(request.getCheckOut());
+        order.setTotalPrice(request.getTotalPrice());
+
+        Order updatedOrder = orderRepository.save(order);
+        return mapToResponse(updatedOrder);
+    }
+
+    @Transactional
+    public OrderResponse updateOrderStatus(Long id, OrderStatus status) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException("Order not found with id: " + id));
+
+        order.setStatus(status);
+        Order updatedOrder = orderRepository.save(order);
+        return mapToResponse(updatedOrder);
+    }
+
+    @Transactional
+    public void deleteOrder(Long id) {
+        if (!orderRepository.existsById(id)) {
+            throw new OrderNotFoundException("Order not found with id: " + id);
+        }
+        orderRepository.deleteById(id);
+    }
+
+    @Transactional
+    public OrderResponse cancelOrder(Long id) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException("Order not found with id: " + id));
+
+        if (order.getStatus() == OrderStatus.COMPLETED) {
+            throw new IllegalStateException("Cannot cancel completed order");
+        }
+
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("Order is already cancelled");
+        }
+
+        order.setStatus(OrderStatus.CANCELLED);
+        Order cancelledOrder = orderRepository.save(order);
+        return mapToResponse(cancelledOrder);
+    }
+
+    private OrderResponse mapToResponse(Order order) {
+        return OrderResponse.builder()
+                .id(order.getId())
+                .userId(order.getUserId())
+                .roomId(order.getRoomId())
+                .checkIn(order.getCheckIn())
+                .checkOut(order.getCheckOut())
+                .totalPrice(order.getTotalPrice())
+                .status(order.getStatus())
+                .createdAt(order.getCreatedAt())
+                .updatedAt(order.getUpdatedAt())
+                .build();
     }
 }

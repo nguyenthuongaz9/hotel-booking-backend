@@ -1,66 +1,57 @@
 package com.hotelbooking.order_service.model;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
-import com.hotelbooking.order_service.dto.PaymentStatus;
+import com.hotelbooking.order_service.dto.OrderStatus;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
-import lombok.*;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "orders")
-@NoArgsConstructor
+@Data
 @AllArgsConstructor
-@Getter
-@Setter
+@NoArgsConstructor
+@Builder
+@EntityListeners(AuditingEntityListener.class)
 public class Order {
     
-
     @Id
-    @GeneratedValue(generator= "uuid")
-    @org.hibernate.annotations.GenericGenerator(name ="uuid", strategy="uuid2")
-    @Column(name = "id", updatable= false, nullable = false)
-    private String id;
-
-    @Column(name="user_id")
-    private String userId;
-
-    @Column(name ="total_amount", nullable=false , precision=12, scale=2)
-    private BigDecimal totalAmount;
-
-    @Column(name="final_amount", nullable=false, precision=12, scale=2)
-    private BigDecimal finalAmount;
-
-    @Column(name="payment_status", nullable=false)
-    private PaymentStatus paymentStatus = PaymentStatus.PENDING;
-
-    @Column(name="payment_method", length=50)
-    private String paymentMethod;
-
-
-    @Column(name="created_at")
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @Column(name="paid_at")
-    private LocalDateTime paidAt;
-
-    @Column(name ="deleted_at")
-    private LocalDateTime deletedAt;
-
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderItem> items;
-
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderDiscount> discounts; 
-
-
-
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+    
+    @Column(name = "room_id", nullable = false)
+    private Long roomId;
+    
+    @Column(name = "check_in", nullable = false)
+    private LocalDate checkIn;
+    
+    @Column(name = "check_out", nullable = false)
+    private LocalDate checkOut;
+    
+    @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
+    private BigDecimal totalPrice;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private OrderStatus status;
+    
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+    
+    @LastModifiedDate
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

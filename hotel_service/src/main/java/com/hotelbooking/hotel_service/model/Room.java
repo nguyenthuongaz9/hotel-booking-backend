@@ -44,6 +44,7 @@ public class Room {
 
     private BigDecimal pricePerNight;
     private String description;
+    private String location;
 
     private Integer capacity;
 

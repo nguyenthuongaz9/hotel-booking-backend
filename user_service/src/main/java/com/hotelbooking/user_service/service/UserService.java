@@ -1,5 +1,7 @@
 package com.hotelbooking.user_service.service;
 
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -8,12 +10,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+
 import com.hotelbooking.user_service.config.jwt.JwtUtils;
+import com.hotelbooking.user_service.mapper.UserMapper;
 import com.hotelbooking.user_service.model.User;
 import com.hotelbooking.user_service.payload.JwtResponse;
 import com.hotelbooking.user_service.payload.LoginRequest;
 import com.hotelbooking.user_service.payload.TokenRefreshRequest;
 import com.hotelbooking.user_service.payload.TokenRefreshResponse;
+import com.hotelbooking.user_service.payload.UserResponse;
 import com.hotelbooking.user_service.repository.UserRepository;
 
 @Service
@@ -27,6 +32,9 @@ public class UserService {
 
     @Autowired
     private JwtUtils jwtUtils;
+
+    @Autowired 
+    private UserMapper userMapper;
 
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -57,10 +65,11 @@ public class UserService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
  
+        UserResponse userResponse = userMapper.toUserResponse(savedUser);
         String accessToken = jwtUtils.generateJwtToken(user.getEmail());
         String refreshToken = jwtUtils.generateRefreshToken(user.getEmail());
 
-        return ResponseEntity.ok(new JwtResponse(accessToken, refreshToken));
+        return ResponseEntity.ok(new JwtResponse(accessToken, refreshToken, userResponse));
     }
 
     public ResponseEntity<?> login(LoginRequest loginRequest) {
@@ -73,7 +82,14 @@ public class UserService {
         String accessToken = jwtUtils.generateJwtToken(loginRequest.getEmail());
         String refreshToken = jwtUtils.generateRefreshToken(loginRequest.getEmail());
 
-        return ResponseEntity.ok(new JwtResponse(accessToken, refreshToken));
+        Optional<User> userOptional = userRepository.findUserByEmail(loginRequest.getEmail());
+        if (userOptional.isEmpty()) {
+            return ResponseEntity.status(404).body("User not found");
+        }
+
+        User user = userOptional.get();
+        UserResponse userResponse = userMapper.toUserResponse(user);
+        return ResponseEntity.ok(new JwtResponse(accessToken, refreshToken, userResponse));
     }
 
     public ResponseEntity<?> refreshToken(TokenRefreshRequest request) {
@@ -88,4 +104,31 @@ public class UserService {
 
         return ResponseEntity.status(401).body("Refresh token is invalid or expired");
     }
+
+    public ResponseEntity<?> getCurrentUser(){
+        try {
+           Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+           
+           if(authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())){
+            return ResponseEntity.status(401).body("User not authenticated");
+
+           }
+
+           String email = authentication.getName();
+           Optional<User> userOptional = userRepository.findUserByEmail(email);
+           if(userOptional.isEmpty()){
+            return ResponseEntity.status(404).body("User not found");
+           }
+
+           User user = userOptional.get();
+
+
+           UserResponse userResponse = userMapper.toUserResponse(user);
+           return ResponseEntity.ok(userResponse);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error retrieving user information");
+        }
+    }
+
+    
 }

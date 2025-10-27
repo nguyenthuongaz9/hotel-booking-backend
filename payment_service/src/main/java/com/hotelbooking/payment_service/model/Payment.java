@@ -1,33 +1,43 @@
 package com.hotelbooking.payment_service.model;
 
-
 import com.hotelbooking.payment_service.domain.PaymentStatus;
+import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import jakarta.persistence.*;
-import lombok.*;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-;
-@Entity
-@Table(name="payment")
+
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Entity
+@Table(name = "payments")
 public class Payment {
-
     @Id
-    @Column(name = "id", nullable = false)
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
+    @Column(name = "order_id", nullable = false)
     private String orderId;
+
+    @Column(name = "amount", nullable = false)
     private Long amount;
+
+    @Column(name = "currency", nullable = false, length = 3)
     private String currency;
+
+    @Column(name = "stripe_payment_intent_id", unique = true)
     private String stripePaymentIntentId;
 
     @Enumerated(EnumType.STRING)
-    private PaymentStatus status;
+    @Column(name = "status", nullable = false)
+    private PaymentStatus status = PaymentStatus.PENDING;
+   @Column(name = "payment_method")
+    private String paymentMethod; 
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

@@ -14,6 +14,7 @@ public class RoomRequestDto {
         private String roomNumber;
         private String type;
         private BigDecimal pricePerNight;
+        private String location;
         private Integer capacity;
         private String description;
         private List<Amenities> amenities;

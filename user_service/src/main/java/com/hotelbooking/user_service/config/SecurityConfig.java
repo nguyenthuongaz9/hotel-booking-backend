@@ -50,8 +50,9 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
             .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
             .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/api/auth/**").permitAll()
-                    .anyRequest().authenticated()
+                .requestMatchers("/api/auth/register").permitAll()  
+                .requestMatchers("/api/auth/login").permitAll()  
+                .anyRequest().authenticated()  
             )
             .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 

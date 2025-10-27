@@ -8,7 +8,7 @@
     </parent>
     <artifactId>user_service</artifactId>
     <name>user_service</name>
-
+ 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -15,13 +15,15 @@ import lombok.NoArgsConstructor;
 @Builder
 public class OrderResponse {
 
-    private Long id;
-    private Long userId;
-    private Long roomId;
+    private String id;
+    private String userId;
+    private String roomId;
     private LocalDate checkIn;
     private LocalDate checkOut;
     private BigDecimal totalPrice;
     private OrderStatus status;
+    private PaymentStatus paymentStatus;
+    private RoomResponse room;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

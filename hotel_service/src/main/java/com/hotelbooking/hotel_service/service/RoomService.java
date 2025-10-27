@@ -1,13 +1,19 @@
 package com.hotelbooking.hotel_service.service;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,8 +35,49 @@ public class RoomService {
 
     private final String uploadDir = System.getProperty("user.dir") + "/src/main/resources/public/uploads/";
 
-    public List<Room> getAllRooms() {
-        return roomRepository.findAll();
+    public Page<Room> getAllRooms(
+            String type,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Integer capacity,
+            Boolean isAvailable,
+            String search,
+            Pageable pageable
+    ) {
+        Specification<Room> spec = Specification.where(null);
+
+        if (type != null && !type.isEmpty()) {
+            spec = spec.and((root, query, criteriaBuilder)
+                    -> criteriaBuilder.equal(criteriaBuilder.lower(root.get("type")), type.toLowerCase()));
+        }
+
+        if (minPrice != null) {
+            spec = spec.and((root, query, criteriaBuilder)
+                    -> criteriaBuilder.greaterThanOrEqualTo(root.get("pricePerNight"), minPrice));
+        }
+
+        if (maxPrice != null) {
+            spec = spec.and((root, query, criteriaBuilder)
+                    -> criteriaBuilder.lessThanOrEqualTo(root.get("pricePerNight"), maxPrice));
+        }
+
+        if (capacity != null) {
+            spec = spec.and((root, query, criteriaBuilder)
+                    -> criteriaBuilder.greaterThanOrEqualTo(root.get("capacity"), capacity));
+        }
+
+        if (isAvailable != null) {
+            spec = spec.and((root, query, criteriaBuilder)
+                    -> criteriaBuilder.equal(root.get("isAvailable"), isAvailable));
+        }
+
+        if (search != null && !search.trim().isEmpty()) {
+            String searchLower = search.toLowerCase();
+            spec = spec.and((root, query, criteriaBuilder)
+                    -> criteriaBuilder.like(criteriaBuilder.lower(root.get("roomNumber")), "%" + searchLower + "%"));
+        }
+
+        return roomRepository.findAll(spec, pageable);
     }
 
     public Optional<Room> getRoomById(String id) {
@@ -42,7 +89,9 @@ public class RoomService {
         room.setRoomNumber(dto.getRoomNumber());
         room.setType(RoomType.valueOf(dto.getType()));
         room.setPricePerNight(dto.getPricePerNight());
+        room.setLocation(dto.getLocation());
         room.setCapacity(dto.getCapacity());
+        room.setDescription(dto.getDescription());
         room.setIsAvailable(dto.getIsAvailable());
 
         if (dto.getAmenities() != null) {
@@ -54,13 +103,14 @@ public class RoomService {
             Files.createDirectories(uploadPath);
         }
 
-        // Lưu room trước để có id
         room = roomRepository.save(room);
 
         List<Image> imageList = new ArrayList<>();
         if (images != null && !images.isEmpty()) {
             for (MultipartFile file : images) {
-                if (file.isEmpty()) continue;
+                if (file.isEmpty()) {
+                    continue;
+                }
 
                 String filename = System.currentTimeMillis() + "_" + file.getOriginalFilename();
                 Path filePath = uploadPath.resolve(filename);
@@ -69,24 +119,26 @@ public class RoomService {
                 Image image = new Image();
                 image.setName(file.getOriginalFilename());
                 image.setImage(filename);
-                image.setRoom(room); // ✅ set room trước khi save
+                image.setRoom(room);
                 imageList.add(imageRepository.save(image));
             }
         }
 
-        // Cập nhật lại images cho room
         room.setImages(imageList);
         return roomRepository.save(room);
     }
 
     public Optional<Room> updateRoom(String id, Room roomDetails, List<MultipartFile> newImages) throws IOException {
         Optional<Room> roomOpt = roomRepository.findById(id);
-        if (roomOpt.isEmpty()) return Optional.empty();
+        if (roomOpt.isEmpty()) {
+            return Optional.empty();
+        }
 
         Room room = roomOpt.get();
         room.setRoomNumber(roomDetails.getRoomNumber());
         room.setType(roomDetails.getType());
         room.setPricePerNight(roomDetails.getPricePerNight());
+        room.setLocation(roomDetails.getLocation());
         room.setCapacity(roomDetails.getCapacity());
         room.setIsAvailable(roomDetails.getIsAvailable());
 
@@ -99,7 +151,9 @@ public class RoomService {
             List<Image> imageList = room.getImages() != null ? room.getImages() : new ArrayList<>();
 
             for (MultipartFile file : newImages) {
-                if (file.isEmpty()) continue;
+                if (file.isEmpty()) {
+                    continue;
+                }
 
                 String filename = System.currentTimeMillis() + "_" + file.getOriginalFilename();
                 Path filePath = uploadPath.resolve(filename);
@@ -108,7 +162,7 @@ public class RoomService {
                 Image image = new Image();
                 image.setName(file.getOriginalFilename());
                 image.setImage(filename);
-                image.setRoom(room); // ✅ set room
+                image.setRoom(room);
                 imageList.add(imageRepository.save(image));
             }
             room.setImages(imageList);

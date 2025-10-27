@@ -3,7 +3,9 @@ package com.hotelbooking.order_service.dto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,11 +17,10 @@ import lombok.NoArgsConstructor;
 @Builder
 public class OrderRequest {
     
-    @NotNull(message = "User ID is required")
-    private Long userId;
+    private String userId;
     
     @NotNull(message = "Room ID is required")
-    private Long roomId;
+    private String roomId;
     
     @NotNull(message = "Check-in date is required")
     @Future(message = "Check-in date must be in the future")

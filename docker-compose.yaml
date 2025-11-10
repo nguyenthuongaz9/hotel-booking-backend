@@ -1,0 +1,294 @@
+
+services:
+  # MySQL Database
+  mysql-db:
+    image: mysql:8.0
+    container_name: hotel-booking-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: nguyenthuong01
+      MYSQL_DATABASE: hotel_booking
+      MYSQL_ROOT_HOST: '%'
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-mysql:/docker-entrypoint-initdb.d
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pnguyenthuong01"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+    command: 
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+  # MongoDB
+  mongodb:
+    image: mongo:6.0
+    container_name: hotel-booking-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: nguyenthuongaz9
+      MONGO_INITDB_ROOT_PASSWORD: nguyenthuong01
+      MONGO_INITDB_DATABASE: hotelbooking
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # Zipkin Tracing
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: hotel-booking-zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9411/health"]
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # Keycloak
+  keycloak:
+    image: quay.io/keycloak/keycloak:21.0.0
+    container_name: hotel-booking-keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: true
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_HEALTH_ENABLED: true
+      KC_PROXY: passthrough
+      KC_HTTP_PORT: 8080
+    ports:
+      - "8181:8080"  # Đã sửa từ 8180 thành 8181
+    command: 
+      - start-dev
+      - --import-realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    networks:
+      - hotel-booking-network
+    restart: on-failure
+    mem_limit: 1g
+
+  # Discovery Service (Eureka Server)
+  discovery-service:
+    build: 
+      context: ./discovery_service
+      dockerfile: Dockerfile
+    container_name: hotel-booking-discovery
+    ports:
+      - "8671:8671"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8671/"]
+      interval: 20s
+      timeout: 15s
+      retries: 20
+      start_period: 90s
+    restart: on-failure
+    mem_limit: 512m
+    
+  # API Gateway
+  api-gateway:
+    build: 
+      context: ./api_gateway
+      dockerfile: Dockerfile
+    container_name: hotel-booking-api-gateway
+    ports:
+      - "8900:8900"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER-URI=http://keycloak:8181/realms/hotelbooking
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK-SET-URI=http://keycloak:8181/realms/hotelbooking/protocol/openid-connect/certs
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8900/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: on-failure
+    mem_limit: 512m
+
+  # User Service
+  user-service:
+    build: 
+      context: ./user_service
+      dockerfile: Dockerfile
+    container_name: hotel-booking-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - MONGO_USERNAME=nguyenthuongaz9
+      - MONGO_PASSWORD=nguyenthuong01
+      - JWT_SECRET_KEY=c29tZXNlY3JldGtleWZvcmV4YW1wbGU
+      - JWT_EXPIRATION=86400000
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    volumes:
+      - user_logs:/app/logs
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: on-failure
+    mem_limit: 512m
+
+  # Hotel Service
+  hotel-service:
+    build: 
+      context: ./hotel_service
+      dockerfile: Dockerfile
+    container_name: hotel-booking-hotel-service
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_USERNAME=root
+      - DB_PASSWORD=nguyenthuong01
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    volumes:
+      - hotel_uploads:/app/uploads
+      - hotel_logs:/app/logs
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: on-failure
+    mem_limit: 512m
+
+  # Order Service
+  order-service:
+    build: 
+      context: ./order_service
+      dockerfile: Dockerfile
+    container_name: hotel-booking-order-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_USERNAME=root
+      - DB_PASSWORD=nguyenthuong01
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    volumes:
+      - order_logs:/app/logs
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: on-failure
+    mem_limit: 512m
+
+  # Payment Service
+  payment-service:
+    build: 
+      context: ./payment_service
+      dockerfile: Dockerfile
+    container_name: hotel-booking-payment-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_USERNAME=root
+      - DB_PASSWORD=nguyenthuong01
+      - STRIPE_SECRET_KEY=sk_test_51SJs9MGORPQB7l1qVoer5jy9UnV5bG8Ynd082WOujXReJKFRD3CN4P72jcMOOQu468lcLQ8ZlpiFEbI2a27gYIaI0088VTVrBZ
+      - STRIPE_PUBLISHABLE_KEY=pk_test_51SJs9MGORPQB7l1qcKjOvFVXwhI8IsIZlYhV4LGIEm8YxDjHY6qn4ab1W7wPxKPlkV6lDMDao8R09UwrUGp6qCmi00A94ZMW1Z
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    volumes:
+      - payment_logs:/app/logs
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - hotel-booking-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: on-failure
+    mem_limit: 512m
+
+volumes:
+  mysql_data:
+  mongo_data:
+  user_logs:
+  hotel_uploads:
+  hotel_logs:
+  order_logs:
+  payment_logs:
+
+networks:
+  hotel-booking-network:
+    driver: bridge

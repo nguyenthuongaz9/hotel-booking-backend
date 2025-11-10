@@ -1,0 +1,366 @@
+{
+    "realm": "hotelbooking",
+    "enabled": true,
+    "sslRequired": "external",
+    "registrationAllowed": true,
+    "loginWithEmailAllowed": true,
+    "duplicateEmailsAllowed": false,
+    "resetPasswordAllowed": true,
+    "editUsernameAllowed": false,
+    "bruteForceProtected": false,
+    "accessTokenLifespan": 300,
+    
+    "clients": [
+        {
+            "clientId": "hotel-booking-frontend",
+            "enabled": true,
+            "publicClient": true,
+            "redirectUris": [
+                "http://localhost:3000/*",
+                "http://localhost:3000",
+                "http://localhost:3000/dashboard/*"
+            ],
+            "webOrigins": [
+                "http://localhost:3000",
+                "http://localhost:8900"
+            ],
+            "protocol": "openid-connect",
+            "attributes": {
+                "oidc.ciba.grant.enabled": "false",
+                "backchannel.logout.session.required": "true",
+                "backchannel.logout.revoke.offline.tokens": "false",
+                "post.logout.redirect.uris": "http://localhost:3000/*"
+            },
+            "defaultRoles": [
+                "user"
+            ]
+        },
+        {
+            "clientId": "api-gateway",
+            "enabled": true,
+            "publicClient": false,
+            "secret": "api-gateway-secret",
+            "redirectUris": [
+                "http://localhost:8900/*",
+                "http://api-gateway:8900/*"
+            ],
+            "baseUrl": "http://localhost:8900",
+            "adminUrl": "http://api-gateway:8900",
+            "webOrigins": [
+                "http://localhost:8900",
+                "http://api-gateway:8900",
+                "http://localhost:3000"
+            ],
+            "protocol": "openid-connect",
+            "serviceAccountsEnabled": true,
+            "authorizationServicesEnabled": true,
+            "directAccessGrantsEnabled": true,
+            "standardFlowEnabled": true,
+            "attributes": {
+                "oidc.ciba.grant.enabled": "false"
+            }
+        },
+        {
+            "clientId": "user-service",
+            "enabled": true,
+            "publicClient": false,
+            "secret": "user-service-secret",
+            "protocol": "openid-connect",
+            "serviceAccountsEnabled": true,
+            "standardFlowEnabled": false,
+            "directAccessGrantsEnabled": true,
+            "attributes": {
+                "oidc.ciba.grant.enabled": "false"
+            }
+        },
+        {
+            "clientId": "hotel-service",
+            "enabled": true,
+            "publicClient": false,
+            "secret": "hotel-service-secret",
+            "protocol": "openid-connect",
+            "serviceAccountsEnabled": true,
+            "standardFlowEnabled": false,
+            "directAccessGrantsEnabled": true,
+            "attributes": {
+                "oidc.ciba.grant.enabled": "false"
+            }
+        },
+        {
+            "clientId": "order-service",
+            "enabled": true,
+            "publicClient": false,
+            "secret": "order-service-secret",
+            "protocol": "openid-connect",
+            "serviceAccountsEnabled": true,
+            "standardFlowEnabled": false,
+            "directAccessGrantsEnabled": true,
+            "attributes": {
+                "oidc.ciba.grant.enabled": "false"
+            }
+        },
+        {
+            "clientId": "payment-service",
+            "enabled": true,
+            "publicClient": false,
+            "secret": "payment-service-secret",
+            "protocol": "openid-connect",
+            "serviceAccountsEnabled": true,
+            "standardFlowEnabled": false,
+            "directAccessGrantsEnabled": true,
+            "attributes": {
+                "oidc.ciba.grant.enabled": "false"
+            }
+        }
+    ],
+    
+    "users": [
+        {
+            "username": "admin",
+            "email": "admin@hotelbooking.com",
+            "firstName": "System",
+            "lastName": "Administrator",
+            "enabled": true,
+            "emailVerified": true,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "admin123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "admin",
+                "user"
+            ],
+            "clientRoles": {
+                "realm-management": [
+                    "view-users",
+                    "manage-users",
+                    "view-clients",
+                    "manage-clients"
+                ],
+                "account": [
+                    "manage-account",
+                    "view-profile"
+                ]
+            },
+            "groups": [
+                "/admin"
+            ]
+        },
+        {
+            "username": "hotel_manager",
+            "email": "manager@hotelbooking.com",
+            "firstName": "Hotel",
+            "lastName": "Manager",
+            "enabled": true,
+            "emailVerified": true,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "manager123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "hotel_manager",
+                "user"
+            ],
+            "groups": [
+                "/hotel_managers"
+            ]
+        },
+        {
+            "username": "user",
+            "email": "user@hotelbooking.com",
+            "firstName": "Regular",
+            "lastName": "User",
+            "enabled": true,
+            "emailVerified": true,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "user123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "user"
+            ],
+            "groups": [
+                "/users"
+            ]
+        },
+        {
+            "username": "customer",
+            "email": "customer@hotelbooking.com",
+            "firstName": "John",
+            "lastName": "Customer",
+            "enabled": true,
+            "emailVerified": true,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "customer123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "customer",
+                "user"
+            ],
+            "groups": [
+                "/customers"
+            ]
+        }
+    ],
+    
+    "roles": {
+        "realm": [
+            {
+                "name": "admin",
+                "description": "Administrator role with full access"
+            },
+            {
+                "name": "user",
+                "description": "Basic user role"
+            },
+            {
+                "name": "hotel_manager",
+                "description": "Hotel Manager role"
+            },
+            {
+                "name": "customer",
+                "description": "Customer role"
+            }
+        ]
+    },
+    
+    "groups": [
+        {
+            "name": "admin",
+            "realmRoles": [
+                "admin"
+            ]
+        },
+        {
+            "name": "hotel_managers",
+            "realmRoles": [
+                "hotel_manager"
+            ]
+        },
+        {
+            "name": "users",
+            "realmRoles": [
+                "user"
+            ]
+        },
+        {
+            "name": "customers",
+            "realmRoles": [
+                "customer"
+            ]
+        }
+    ],
+    
+    "clientScopes": [
+        {
+            "name": "roles",
+            "protocol": "openid-connect",
+            "attributes": {
+                "include.in.token.scope": "true",
+                "display.on.consent.screen": "true",
+                "consent.screen.text": "Roles"
+            },
+            "protocolMappers": [
+                {
+                    "name": "realm roles",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-realm-role-mapper",
+                    "config": {
+                        "multivalued": "true",
+                        "user.attribute": "foo",
+                        "access.token.claim": "true",
+                        "claim.name": "roles",
+                        "jsonType.label": "String"
+                    }
+                },
+                {
+                    "name": "client roles",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-client-role-mapper",
+                    "config": {
+                        "multivalued": "true",
+                        "user.attribute": "foo",
+                        "access.token.claim": "true",
+                        "claim.name": "resource_roles",
+                        "jsonType.label": "String"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "groups",
+            "protocol": "openid-connect",
+            "attributes": {
+                "include.in.token.scope": "true",
+                "display.on.consent.screen": "true",
+                "consent.screen.text": "Groups"
+            },
+            "protocolMappers": [
+                {
+                    "name": "groups",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-group-membership-mapper",
+                    "config": {
+                        "full.path": "false",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true",
+                        "claim.name": "groups",
+                        "userinfo.token.claim": "true"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "microprofile-jwt",
+            "protocol": "openid-connect",
+            "attributes": {
+                "include.in.token.scope": "false",
+                "display.on.consent.screen": "false"
+            },
+            "protocolMappers": [
+                {
+                    "name": "upn",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-property-mapper",
+                    "config": {
+                        "user.attribute": "username",
+                        "access.token.claim": "true",
+                        "claim.name": "upn",
+                        "jsonType.label": "String"
+                    }
+                }
+            ]
+        }
+    ],
+    
+    "defaultDefaultClientScopes": [
+        "web-origins",
+        "roles",
+        "profile",
+        "email",
+        "groups"
+    ],
+    "defaultOptionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+    ],
+    
+    "requiredCredentials": [
+        "password"
+    ]
+}

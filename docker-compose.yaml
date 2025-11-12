@@ -1,9 +1,8 @@
-
 services:
   # MySQL Database
   mysql-db:
     image: mysql:8.0
-    container_name: hotel-booking-mysql
+    container_name: mysql-db
     environment:
       MYSQL_ROOT_PASSWORD: nguyenthuong01
       MYSQL_DATABASE: hotel_booking
@@ -30,7 +29,7 @@ services:
   # MongoDB
   mongodb:
     image: mongo:6.0
-    container_name: hotel-booking-mongodb
+    container_name: mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: nguyenthuongaz9
       MONGO_INITDB_ROOT_PASSWORD: nguyenthuong01
@@ -53,7 +52,7 @@ services:
   # Zipkin Tracing
   zipkin:
     image: openzipkin/zipkin:latest
-    container_name: hotel-booking-zipkin
+    container_name: zipkin
     ports:
       - "9411:9411"
     networks:
@@ -61,15 +60,15 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9411/health"]
       interval: 30s
-      timeout: 20s
-      retries: 10
-      start_period: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
 
   # Keycloak
   keycloak:
     image: quay.io/keycloak/keycloak:21.0.0
-    container_name: hotel-booking-keycloak
+    container_name: keycloak
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
@@ -80,7 +79,7 @@ services:
       KC_PROXY: passthrough
       KC_HTTP_PORT: 8080
     ports:
-      - "8181:8080"  # Đã sửa từ 8180 thành 8181
+      - "8181:8080"
     command: 
       - start-dev
       - --import-realm
@@ -96,22 +95,18 @@ services:
     build: 
       context: ./discovery_service
       dockerfile: Dockerfile
-    container_name: hotel-booking-discovery
+    container_name: discovery-service
+    hostname: discovery-service
     ports:
       - "8671:8671"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
       - JAVA_OPTS=-Xmx512m -Xms256m
+      - EUREKA_INSTANCE_HOSTNAME=discovery-service
     networks:
       - hotel-booking-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8671/"]
-      interval: 20s
-      timeout: 15s
-      retries: 20
-      start_period: 90s
-    restart: on-failure
+    restart: unless-stopped
     mem_limit: 512m
     
   # API Gateway
@@ -119,19 +114,19 @@ services:
     build: 
       context: ./api_gateway
       dockerfile: Dockerfile
-    container_name: hotel-booking-api-gateway
+    container_name: api-gateway
+    hostname: api-gateway
     ports:
       - "8900:8900"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-service:8671/eureka/
       - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER-URI=http://keycloak:8181/realms/hotelbooking
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK-SET-URI=http://keycloak:8181/realms/hotelbooking/protocol/openid-connect/certs
       - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
-      discovery-service:
-        condition: service_healthy
+      - discovery-service
     networks:
       - hotel-booking-network
     healthcheck:
@@ -148,7 +143,8 @@ services:
     build: 
       context: ./user_service
       dockerfile: Dockerfile
-    container_name: hotel-booking-user-service
+    container_name: user-service
+    hostname: user-service
     ports:
       - "8081:8081"
     environment:
@@ -157,7 +153,7 @@ services:
       - MONGO_PASSWORD=nguyenthuong01
       - JWT_SECRET_KEY=c29tZXNlY3JldGtleWZvcmV4YW1wbGU
       - JWT_EXPIRATION=86400000
-      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-service:8671/eureka/
       - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
       - JAVA_OPTS=-Xmx512m -Xms256m
     volumes:
@@ -166,7 +162,7 @@ services:
       mongodb:
         condition: service_healthy
       discovery-service:
-        condition: service_healthy
+        condition: service_started
     networks:
       - hotel-booking-network
     healthcheck:
@@ -183,14 +179,15 @@ services:
     build: 
       context: ./hotel_service
       dockerfile: Dockerfile
-    container_name: hotel-booking-hotel-service
+    container_name: hotel-service
+    hostname: hotel-service
     ports:
       - "8084:8084"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - DB_USERNAME=root
       - DB_PASSWORD=nguyenthuong01
-      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-service:8671/eureka/
       - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
       - JAVA_OPTS=-Xmx512m -Xms256m
     volumes:
@@ -200,7 +197,7 @@ services:
       mysql-db:
         condition: service_healthy
       discovery-service:
-        condition: service_healthy
+        condition: service_started
     networks:
       - hotel-booking-network
     healthcheck:
@@ -217,14 +214,15 @@ services:
     build: 
       context: ./order_service
       dockerfile: Dockerfile
-    container_name: hotel-booking-order-service
+    container_name: order-service
+    hostname: order-service
     ports:
       - "8083:8083"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - DB_USERNAME=root
       - DB_PASSWORD=nguyenthuong01
-      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-service:8671/eureka/
       - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
       - JAVA_OPTS=-Xmx512m -Xms256m
     volumes:
@@ -233,7 +231,7 @@ services:
       mysql-db:
         condition: service_healthy
       discovery-service:
-        condition: service_healthy
+        condition: service_started
     networks:
       - hotel-booking-network
     healthcheck:
@@ -250,7 +248,8 @@ services:
     build: 
       context: ./payment_service
       dockerfile: Dockerfile
-    container_name: hotel-booking-payment-service
+    container_name: payment-service
+    hostname: payment-service
     ports:
       - "8082:8082"
     environment:
@@ -259,7 +258,7 @@ services:
       - DB_PASSWORD=nguyenthuong01
       - STRIPE_SECRET_KEY=sk_test_51SJs9MGORPQB7l1qVoer5jy9UnV5bG8Ynd082WOujXReJKFRD3CN4P72jcMOOQu468lcLQ8ZlpiFEbI2a27gYIaI0088VTVrBZ
       - STRIPE_PUBLISHABLE_KEY=pk_test_51SJs9MGORPQB7l1qcKjOvFVXwhI8IsIZlYhV4LGIEm8YxDjHY6qn4ab1W7wPxKPlkV6lDMDao8R09UwrUGp6qCmi00A94ZMW1Z
-      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-server:8671/eureka/
+      - EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE=http://discovery-service:8671/eureka/
       - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
       - JAVA_OPTS=-Xmx512m -Xms256m
     volumes:
@@ -268,7 +267,7 @@ services:
       mysql-db:
         condition: service_healthy
       discovery-service:
-        condition: service_healthy
+        condition: service_started
     networks:
       - hotel-booking-network
     healthcheck:

@@ -9,7 +9,6 @@
     "editUsernameAllowed": false,
     "bruteForceProtected": false,
     "accessTokenLifespan": 300,
-    
     "clients": [
         {
             "clientId": "hotel-booking-frontend",
@@ -49,7 +48,8 @@
             "webOrigins": [
                 "http://localhost:8900",
                 "http://api-gateway:8900",
-                "http://localhost:3000"
+                "http://localhost:3000",
+                "https://localhost:3000"
             ],
             "protocol": "openid-connect",
             "serviceAccountsEnabled": true,
@@ -57,7 +57,9 @@
             "directAccessGrantsEnabled": true,
             "standardFlowEnabled": true,
             "attributes": {
-                "oidc.ciba.grant.enabled": "false"
+                "oidc.ciba.grant.enabled": "false",
+                "backchannel.logout.session.required": "true",
+                "backchannel.logout.revoke.offline.tokens": "false"
             }
         },
         {
@@ -113,7 +115,6 @@
             }
         }
     ],
-    
     "users": [
         {
             "username": "admin",
@@ -215,7 +216,6 @@
             ]
         }
     ],
-    
     "roles": {
         "realm": [
             {
@@ -236,7 +236,6 @@
             }
         ]
     },
-    
     "groups": [
         {
             "name": "admin",
@@ -263,7 +262,6 @@
             ]
         }
     ],
-    
     "clientScopes": [
         {
             "name": "roles",
@@ -345,7 +343,6 @@
             ]
         }
     ],
-    
     "defaultDefaultClientScopes": [
         "web-origins",
         "roles",
@@ -359,7 +356,6 @@
         "offline_access",
         "microprofile-jwt"
     ],
-    
     "requiredCredentials": [
         "password"
     ]

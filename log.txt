@@ -1,0 +1,16 @@
+Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8900/api/rooms/featured-reviews. (Reason: CORS request did not succeed). Status code: (null).
+
+Error fetching testimonials: TypeError: NetworkError when attempting to fetch resource. Testimonial.jsx:27:15
+✅ Token received successfully KeyCloakService.js:42:15
+✅ Token added to request: GET /rooms?page=0&size=4&sort=roomNumber%2Casc axiosInstance.js:25:17
+Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8900/api/rooms?page=0&size=4&sort=roomNumber%2Casc. (Reason: CORS request did not succeed). Status code: (null).
+2
+❌ API Error: 
+Object { status: undefined, url: "/rooms?page=0&size=4&sort=roomNumber%2Casc", method: "get", error: undefined }
+axiosInstance.js:49:13
+Error fetching rooms: 
+Object { message: "Network Error", name: "AxiosError", code: "ERR_NETWORK", config: {…}, request: XMLHttpRequest, event: error, stack: "", … }
+RoomService.js:72:15
+Error fetching featured rooms: 
+Object { message: "Network Error", name: "AxiosError", code: "ERR_NETWORK", config: {…}, request: XMLHttpRequest, event: error, stack: "", … }
+FeaturedDestination.jsx:25:17

@@ -1,9 +1,7 @@
 #!/bin/bash
-# deploy-complete.sh
-
+./reset-docker.sh
 echo "=== COMPLETE HOTEL BOOKING SYSTEM DEPLOYMENT ==="
 
-# Clean up
 echo "0. Cleaning up..."
 docker-compose down
 docker system prune -f
@@ -13,17 +11,18 @@ services=("discovery_service" "api_gateway" "user_service" "hotel_service" "orde
 
 for service in "${services[@]}"; do
     echo "  Building $service..."
-    if [ -d "$service" ]; then
-        cd "$service"
-        mvn clean package spring-boot:repackage -DskipTests
+    service_dir="${service//_/-}"  
+    if [ -d "$service_dir" ]; then
+        cd "$service_dir"
+        ./mvnw clean package -DskipTests
         if [ $? -ne 0 ]; then
             echo "ERROR: Build failed for $service"
             exit 1
         fi
         cd ..
-        docker build -t "hotel-booking/${service//_/-}:latest" "./$service"
+        docker build -t "hotel-booking/${service_dir}:latest" "./$service_dir"
     else
-        echo "WARNING: Directory $service not found"
+        echo "WARNING: Directory $service_dir not found"
     fi
 done
 
@@ -32,14 +31,14 @@ docker-compose up -d mysql-db mongodb keycloak zipkin
 
 echo "3. Waiting for infrastructure to be ready..."
 echo "   Waiting for MySQL..."
-until docker exec hotel-booking-mysql mysqladmin ping -h localhost -uroot -pnguyenthuong01 --silent; do
+until docker exec mysql-db mysqladmin ping -h localhost -uroot -proot --silent; do
     printf '.'
     sleep 5
 done
 echo " MySQL OK"
 
 echo "   Waiting for MongoDB..."
-until docker exec hotel-booking-mongodb mongosh --eval "db.adminCommand('ping')" --quiet > /dev/null; do
+until docker exec mongodb mongosh --eval "db.adminCommand('ping')" --quiet > /dev/null; do
     printf '.'
     sleep 5
 done
@@ -63,10 +62,7 @@ echo "4. Starting Discovery Service..."
 docker-compose up -d discovery-service
 
 echo "   Waiting for Discovery Service..."
-until curl -f http://localhost:8671/actuator/health > /dev/null 2>&1; do
-    printf '.'
-    sleep 10
-done
+
 echo " Discovery Service OK"
 
 echo "5. Starting microservices..."
@@ -85,7 +81,7 @@ echo "Keycloak Admin: http://localhost:8181 (admin/admin)"
 echo "Eureka Dashboard: http://localhost:8671" 
 echo "API Gateway: http://localhost:8900"
 echo "Zipkin Tracing: http://localhost:9411"
-echo "MySQL: localhost:3306 (root/nguyenthuong01)"
-echo "MongoDB: localhost:27017 (nguyenthuongaz9/nguyenthuong01)"
+echo "MySQL: localhost:3306 (root/root)"
+echo "MongoDB: localhost:27017"
 echo ""
 echo "Check logs: docker-compose logs -f [service-name]"

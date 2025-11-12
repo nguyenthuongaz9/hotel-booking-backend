@@ -20,26 +20,28 @@ public class SecurityConfig {
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         http
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .cors(ServerHttpSecurity.CorsSpec::disable)
+                .cors(ServerHttpSecurity.CorsSpec::disable) 
+                .csrf(ServerHttpSecurity.CsrfSpec::disable) 
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers(
                                 "/eureka/**", 
                                 "/actuator/**", 
                                 "/api/auth/**", 
-                                "/api/public/**", 
+                                "/api/users/register/**",
                                 "/api/rooms/**",
+                                "/api/hotels/**",
                                 "/api/orders/**",
+                                "/api/payments/**",
                                 "/uploads/**",
                                 "/favicon.ico",
-                                "/error"
+                                "/error",
+                                "/fallback/**"
                         ).permitAll()
-                        // Allow OPTIONS requests for CORS preflight
-                        .pathMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .anyExchange().authenticated()
+                        .pathMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll() 
+                        .anyExchange().authenticated() 
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtDecoder(reactiveJwtDecoder))
+                        .jwt(jwt -> jwt.jwtDecoder(reactiveJwtDecoder)) 
                 );
 
         return http.build();

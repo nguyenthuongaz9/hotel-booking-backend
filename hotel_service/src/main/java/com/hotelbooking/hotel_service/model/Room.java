@@ -2,6 +2,7 @@ package com.hotelbooking.hotel_service.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
@@ -17,6 +18,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -34,8 +36,8 @@ public class Room {
     private String id;
 
     private String roomNumber;
-
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, orphanRemoval = true, fetch=FetchType.EAGER)
+    @OneToMany(mappedBy = "room", cascade = { CascadeType.PERSIST,
+            CascadeType.MERGE }, orphanRemoval = false, fetch = FetchType.EAGER)
     @JsonManagedReference
     private List<Image> images;
 
@@ -58,5 +60,20 @@ public class Room {
     private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference
     private List<Review> reviews;
+
+
+    public void addImage(Image image) {
+        if (this.images == null) {
+            this.images = new ArrayList<>();
+        }
+        image.setRoom(this);
+        this.images.add(image);
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

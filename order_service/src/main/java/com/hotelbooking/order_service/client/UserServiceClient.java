@@ -32,7 +32,7 @@ public class UserServiceClient {
         log.info("Fetching user details for userId: {} from user-service", userId);
         
         return webClient.get()
-                .uri("/api/users/{id}", userId) // Sửa URI endpoint
+                .uri("/api/user/{id}", userId) 
                 .retrieve()
                 .onStatus(status -> status.is4xxClientError(), response -> {
                     log.error("Client error when fetching user {}: {}", userId, response.statusCode());
@@ -42,13 +42,13 @@ public class UserServiceClient {
                     log.error("Server error when fetching user {}: {}", userId, response.statusCode());
                     return Mono.error(new RuntimeException("User service is unavailable"));
                 })
-                .bodyToMono(UserResponse.class) // Sửa thành UserResponse
+                .bodyToMono(UserResponse.class) 
                 .doOnSuccess(user -> log.info("Successfully fetched user: {}", user.getId()))
                 .doOnError(error -> log.error("Error fetching user {}: {}", userId, error.getMessage()))
                 .timeout(Duration.ofSeconds(5))
                 .onErrorResume(throwable -> {
                     log.warn("Failed to fetch user {}, returning fallback: {}", userId, throwable.getMessage());
-                    return Mono.just(createFallbackUser(userId)); // Sửa thành createFallbackUser
+                    return Mono.just(createFallbackUser(userId)); 
                 });
     }
 

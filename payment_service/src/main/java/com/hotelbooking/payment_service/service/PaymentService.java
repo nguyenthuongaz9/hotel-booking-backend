@@ -1,6 +1,16 @@
 package com.hotelbooking.payment_service.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.hotelbooking.payment_service.domain.PaymentStatus;
 import com.hotelbooking.payment_service.dto.PaymentResponse;
@@ -9,15 +19,6 @@ import com.hotelbooking.payment_service.repository.PaymentRepository;
 import com.stripe.Stripe;
 import com.stripe.model.PaymentIntent;
 import com.stripe.param.PaymentIntentCreateParams;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 @Service
 @Transactional
@@ -156,5 +157,94 @@ public class PaymentService {
 
     public List<Payment> getAllPayments() {
         return paymentRepository.findAll();
+    }
+
+
+    public Map<String, Object> getRevenueOverview() {
+        
+        Long totalRevenue = paymentRepository.sumAmountByStatus(PaymentStatus.PAID);
+        
+        LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime endOfMonth = LocalDate.now().plusMonths(1).withDayOfMonth(1).atStartOfDay();
+        Long monthlyRevenue = paymentRepository.sumAmountByStatusAndDateRange(
+            PaymentStatus.PAID, startOfMonth, endOfMonth);
+        
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfToday = LocalDate.now().plusDays(1).atStartOfDay();
+        Long todayRevenue = paymentRepository.sumAmountByStatusAndDateRange(
+            PaymentStatus.PAID, startOfToday, endOfToday);
+        
+        Long successfulPayments = paymentRepository.countByStatus(PaymentStatus.PAID);
+        
+        Map<String, Object> overview = new HashMap<>();
+        overview.put("totalRevenue", totalRevenue != null ? totalRevenue : 0L);
+        overview.put("monthlyRevenue", monthlyRevenue != null ? monthlyRevenue : 0L);
+        overview.put("todayRevenue", todayRevenue != null ? todayRevenue : 0L);
+        overview.put("successfulPayments", successfulPayments);
+        overview.put("currency", "USD"); 
+        
+        return overview;
+    }
+
+    public Map<String, Object> getRevenueByTimePeriod(String period) {
+        
+        LocalDateTime startDate;
+        LocalDateTime endDate = LocalDateTime.now();
+        
+        switch (period.toLowerCase()) {
+            case "week":
+                startDate = endDate.minusWeeks(1);
+                break;
+            case "month":
+                startDate = endDate.minusMonths(1);
+                break;
+            case "quarter":
+                startDate = endDate.minusMonths(3);
+                break;
+            case "year":
+                startDate = endDate.minusYears(1);
+                break;
+            default:
+                startDate = endDate.minusMonths(1); 
+        }
+        
+        List<Object[]> revenueData = paymentRepository.findDailyRevenueByDateRange(
+            PaymentStatus.PAID, startDate, endDate);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("period", period);
+        result.put("startDate", startDate);
+        result.put("endDate", endDate);
+        result.put("revenueData", revenueData);
+        result.put("totalRevenue", calculateTotalRevenue(revenueData));
+        
+        return result;
+    }
+
+    public Map<String, Object> getPaymentMethodStatistics() {
+        
+        List<Object[]> methodStats = paymentRepository.findPaymentMethodStatistics(PaymentStatus.PAID);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("paymentMethods", methodStats);
+        result.put("totalSuccessfulPayments", paymentRepository.countByStatus(PaymentStatus.PAID));
+        
+        return result;
+    }
+
+    public Map<String, Object> getRevenueByStatus() {
+        
+        List<Object[]> statusRevenue = paymentRepository.findRevenueGroupByStatus();
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("revenueByStatus", statusRevenue);
+        
+        return result;
+    }
+
+    private Long calculateTotalRevenue(List<Object[]> revenueData) {
+        return revenueData.stream()
+                .mapToLong(data -> (Long) data[1])
+                .sum();
     }
 }

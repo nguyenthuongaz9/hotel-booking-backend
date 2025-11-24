@@ -32,18 +32,19 @@ public class Image {
     private String name;
     private String image;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id")
-    @JsonBackReference  
+    @JsonBackReference
     private Room room;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     @PrePersist
-    public void prePersist() {
-        createdAt = updatedAt = LocalDateTime.now();
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
     }
+
 
     @PreUpdate
     public void preUpdate() {

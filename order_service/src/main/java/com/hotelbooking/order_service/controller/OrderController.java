@@ -141,4 +141,10 @@ public class OrderController {
 
         return "Opps! Something went wrong, please order after some time!";
     }
+
+    @GetMapping("/count")
+    public ResponseEntity<?> countOrders() {
+        log.info("Counting total orders");
+        return orderService.countOrders();
+    }
 }

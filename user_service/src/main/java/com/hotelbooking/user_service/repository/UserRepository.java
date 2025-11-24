@@ -2,6 +2,8 @@ package com.hotelbooking.user_service.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import com.hotelbooking.user_service.model.User;
@@ -9,5 +11,6 @@ import com.hotelbooking.user_service.model.User;
 public interface UserRepository extends MongoRepository<User, String> {
     Optional<User> findUserById(String id);
     Optional<User> findUserByEmail(String email);
+     Page<User> findByNameContainingOrEmailContainingIgnoreCase(String name, String email, Pageable pageable);
     
 }

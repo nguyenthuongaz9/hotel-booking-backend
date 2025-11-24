@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -22,9 +23,9 @@ public class SecurityConfig {
     private final AuthEntryPointJwt unauthorizedHandler;
     private final JwtUtils jwtUtils;
 
-    public SecurityConfig(UserDetailService userDetailService, 
-                          AuthEntryPointJwt unauthorizedHandler,
-                          JwtUtils jwtUtils) {
+    public SecurityConfig(UserDetailService userDetailService,
+            AuthEntryPointJwt unauthorizedHandler,
+            JwtUtils jwtUtils) {
         this.userDetailService = userDetailService;
         this.unauthorizedHandler = unauthorizedHandler;
         this.jwtUtils = jwtUtils;
@@ -47,14 +48,22 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable())
-            .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/register").permitAll()  
-                .requestMatchers("/api/auth/login").permitAll()  
-                .anyRequest().authenticated()  
-            )
-            .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+        http.csrf(crf -> crf.disable())
+                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.requestMatchers(
+                        "/api/auth/register",
+                        "/api/auth/login",
+                        "/api/auth/refresh-token",
+                        "/api/user/me",
+                        "/api/user/**",
+                        "/actuator/health",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html").permitAll()
+                        .anyRequest().authenticated())
+                .authenticationManager(authenticationManager(http.getSharedObject(AuthenticationConfiguration.class)))
+                .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

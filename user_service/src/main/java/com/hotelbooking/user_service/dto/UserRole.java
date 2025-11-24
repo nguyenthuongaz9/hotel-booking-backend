@@ -4,5 +4,6 @@ package com.hotelbooking.user_service.dto;
 public enum UserRole{
     ADMIN,
     USER,
-    SCANNER
+    SCANNER,
+    HOTEL_MANAGER
 }

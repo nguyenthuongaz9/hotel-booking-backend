@@ -60,7 +60,9 @@ public class SecurityConfig {
                         "/actuator/health",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
-                        "/swagger-ui.html").permitAll()
+                        "/swagger-ui.html",
+                        "/error"
+                        ).permitAll()
                         .anyRequest().authenticated())
                 .authenticationManager(authenticationManager(http.getSharedObject(AuthenticationConfiguration.class)))
                 .addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);

@@ -1,4 +1,4 @@
-package com.holtelbooking.api_gateway.config;
+package com.hotelbooking.api_gateway.config;
 
 import java.util.Arrays;
 import java.util.List;

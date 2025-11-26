@@ -28,7 +28,7 @@ public class User {
 
     private String name;
 
-    @Indexed(unique= true)
+    @Indexed(unique= true, name="email_unique_idx")
     private String email;
 
     private String password;

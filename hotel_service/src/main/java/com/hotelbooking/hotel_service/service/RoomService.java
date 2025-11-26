@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.hotelbooking.hotel_service.client.UserServiceClient;
 import com.hotelbooking.hotel_service.domain.ReviewWithUser;
@@ -39,7 +40,8 @@ public class RoomService {
     private final ImageRepository imageRepository;
     private final UserServiceClient userServiceClient;
 
-    private final String uploadDir = System.getProperty("user.dir") + "/src/main/resources/public/uploads/";
+    @Value("${app.upload.dir:uploads/}")
+    private String uploadDir;
 
     public Page<Room> getAllRooms(
             String type,

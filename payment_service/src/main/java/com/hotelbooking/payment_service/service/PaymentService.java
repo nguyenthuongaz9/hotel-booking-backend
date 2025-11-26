@@ -108,7 +108,7 @@ public class PaymentService {
                 if ("succeeded".equals(paymentIntent.getStatus())) {
                     payment.setStatus(PaymentStatus.PAID);
                 } else if ("canceled".equals(paymentIntent.getStatus())) {
-                    payment.setStatus(PaymentStatus.CANCELLED);
+                    payment.setStatus(PaymentStatus.FAILED);
                 }
                 paymentRepository.save(payment);
             }

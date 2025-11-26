@@ -20,6 +20,7 @@ RUN java -Djarmode=layertools -jar app.jar extract
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 RUN addgroup -S spring && adduser -S spring -G spring
+RUN mkdir -p /app/uploads && chown -R spring:spring /app/uploads
 USER spring
 
 COPY --from=extractor /app/dependencies/ ./ 

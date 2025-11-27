@@ -143,7 +143,8 @@ const sampleUsers = [
         role: "USER",
         createdAt: new Date("2024-01-18T16:45:00Z"),
         updatedAt: new Date("2024-01-18T16:45:00Z")
-    }
+    },
+
 ];
 
 db.user.insertMany(sampleUsers);

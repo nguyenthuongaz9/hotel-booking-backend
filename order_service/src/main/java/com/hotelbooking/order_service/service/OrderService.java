@@ -1,8 +1,8 @@
 package com.hotelbooking.order_service.service;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -38,6 +38,8 @@ import com.hotelbooking.order_service.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Service
 @RequiredArgsConstructor
@@ -49,35 +51,96 @@ public class OrderService {
     private final PaymentServiceClient paymentServiceClient;
     private final UserServiceClient userServiceClient;
 
-    @Transactional
-    public OrderResponse createOrder(OrderRequest request) {
-        log.info("Creating order for user: {}, room: {}", request.getUserId(), request.getRoomId());
+    public Mono<OrderResponse> createOrder(OrderRequest request) {
+        log.info("=== START ORDER CREATION ===");
+        log.info("Creating order for user: {}, room: {}, checkIn: {}, checkOut: {}, totalPrice: {}",
+                request.getUserId(), request.getRoomId(), request.getCheckIn(),
+                request.getCheckOut(), request.getTotalPrice());
+
+        // Validate request data
+        if (request.getUserId() == null || request.getUserId().trim().isEmpty()) {
+            return Mono.error(new IllegalArgumentException("User ID is required"));
+        }
+        if (request.getRoomId() == null || request.getRoomId().trim().isEmpty()) {
+            return Mono.error(new IllegalArgumentException("Room ID is required"));
+        }
+        if (request.getTotalPrice() == null || request.getTotalPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            return Mono.error(new IllegalArgumentException("Total price must be positive"));
+        }
+
         if (request.getCheckOut().isBefore(request.getCheckIn()) ||
                 request.getCheckOut().isEqual(request.getCheckIn())) {
-            throw new IllegalArgumentException("Check-out date must be after check-in date");
+            log.error("Invalid dates: checkOut {} is before or equal to checkIn {}",
+                    request.getCheckOut(), request.getCheckIn());
+            return Mono.error(new IllegalArgumentException("Check-out date must be after check-in date"));
         }
 
-        Long conflictingOrders = orderRepository.countConflictingOrders(
-                request.getRoomId(),
-                request.getCheckIn(),
-                request.getCheckOut());
+        // Tạo Mono cho conflicting orders
+        Mono<Long> conflictingOrdersMono = Mono.fromCallable(() -> {
+            try {
+                log.info("Checking conflicting orders for room: {}", request.getRoomId());
+                Long count = orderRepository.countConflictingOrders(
+                        request.getRoomId(),
+                        request.getCheckIn(),
+                        request.getCheckOut());
+                log.info("Conflicting orders count: {}", count);
+                return count;
+            } catch (Exception e) {
+                log.error("Error checking conflicting orders: {}", e.getMessage(), e);
+                throw new RuntimeException("Error checking room availability");
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
 
-        if (conflictingOrders > 0) {
-            throw new RoomNotAvailableException("Room is not available for selected dates");
-        }
-        Order order = Order.builder()
-                .userId(request.getUserId())
-                .roomId(request.getRoomId())
-                .checkIn(request.getCheckIn())
-                .checkOut(request.getCheckOut())
-                .totalPrice(request.getTotalPrice())
-                .status(OrderStatus.PENDING)
-                .paymentStatus(PaymentStatus.PENDING)
-                .build();
+        Mono<Boolean> roomAvailableMono = roomServiceClient.isAvailable(request.getRoomId())
+                .defaultIfEmpty(false)
+                .doOnNext(available -> log.info("Room availability: {}", available))
+                .doOnError(error -> log.error("Error checking room availability: {}", error.getMessage()));
 
-        Order savedOrder = orderRepository.save(order);
-        log.info("Order created successfully with ID: {}", savedOrder.getId());
-        return mapToResponse(savedOrder);
+        return Mono.zip(conflictingOrdersMono, roomAvailableMono)
+                .flatMap(tuple -> {
+                    Long conflictingOrders = tuple.getT1();
+                    Boolean isAvailable = tuple.getT2();
+
+                    log.info("Validation results - Conflicting orders: {}, Room available: {}",
+                            conflictingOrders, isAvailable);
+
+                    if (conflictingOrders > 0 || Boolean.FALSE.equals(isAvailable)) {
+                        String errorMsg = conflictingOrders > 0 ? "Room has conflicting orders"
+                                : "Room is not available";
+                        log.error("Order validation failed: {}", errorMsg);
+                        return Mono.error(new RoomNotAvailableException("Room is not available for selected dates"));
+                    }
+
+                    Order order = Order.builder()
+                            .userId(request.getUserId())
+                            .roomId(request.getRoomId())
+                            .checkIn(request.getCheckIn())
+                            .checkOut(request.getCheckOut())
+                            .totalPrice(request.getTotalPrice())
+                            .status(OrderStatus.PENDING)
+                            .paymentStatus(PaymentStatus.PENDING)
+                            .build();
+
+                    return Mono.fromCallable(() -> {
+                        try {
+                            log.info("Saving order to database...");
+                            Order savedOrder = orderRepository.save(order);
+                            log.info("=== ORDER CREATED SUCCESSFULLY ===");
+                            log.info("Order ID: {}", savedOrder.getId());
+                            return mapToResponse(savedOrder);
+                        } catch (Exception e) {
+                            log.error("Error saving order: {}", e.getMessage(), e);
+                            throw new RuntimeException("Error saving order");
+                        }
+                    }).subscribeOn(Schedulers.boundedElastic());
+                })
+                .doOnError(error -> {
+                    log.error("=== ORDER CREATION FAILED ===");
+                    log.error("Error: {}", error.getMessage());
+                })
+                .doOnSuccess(response -> {
+                    log.info("=== ORDER CREATION COMPLETED SUCCESSFULLY ===");
+                });
     }
 
     @Transactional
@@ -229,7 +292,7 @@ public class OrderService {
         return orderResponse;
     }
 
-      public PaginatedOrderResponse getAllOrders(int page, int size) {
+    public PaginatedOrderResponse getAllOrders(int page, int size) {
         log.info("Fetching all orders with pagination - page: {}, size: {}", page, size);
 
         if (page < 0) {
@@ -248,25 +311,26 @@ public class OrderService {
         List<CompletableFuture<OrderResponse>> futures = orderPage.getContent().stream()
                 .map(order -> {
                     OrderResponse orderResponse = mapToResponse(order);
-                    
+
                     CompletableFuture<RoomResponse> roomFuture = roomServiceClient.getRoomById(order.getRoomId())
                             .toFuture();
-                    
+
                     CompletableFuture<UserResponse> userFuture = userServiceClient.getUserById(order.getUserId())
                             .toFuture();
-                    
+
                     return CompletableFuture.allOf(roomFuture, userFuture)
                             .thenApply(v -> {
                                 try {
                                     RoomResponse room = roomFuture.get();
                                     UserResponse user = userFuture.get();
-                                    
+
                                     orderResponse.setRoom(room);
                                     if (user != null) {
                                         orderResponse.setUser(user);
                                     }
                                 } catch (Exception e) {
-                                    log.warn("Error setting room/user info for order {}: {}", order.getId(), e.getMessage());
+                                    log.warn("Error setting room/user info for order {}: {}", order.getId(),
+                                            e.getMessage());
                                 }
                                 return orderResponse;
                             });
@@ -288,8 +352,6 @@ public class OrderService {
 
         return PaginatedOrderResponse.fromPage(orderResponsePage);
     }
-
-
 
     public List<OrderResponse> getOrdersByUserId(String userId) {
         log.info("Fetching orders for user: {}", userId);

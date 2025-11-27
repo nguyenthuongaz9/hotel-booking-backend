@@ -27,6 +27,7 @@ COPY --from=extractor /app/dependencies/ ./
 COPY --from=extractor /app/spring-boot-loader/ ./
 COPY --from=extractor /app/snapshot-dependencies/ ./
 COPY --from=extractor /app/application/ ./
+COPY --from=builder /app/hotel_service/src/main/resources/public/uploads/. /app/uploads/
 
 EXPOSE 8084
 ENTRYPOINT ["java", "-Xmx512m", "-Xms256m", "-Duser.timezone=Asia/Ho_Chi_Minh", "org.springframework.boot.loader.JarLauncher"]

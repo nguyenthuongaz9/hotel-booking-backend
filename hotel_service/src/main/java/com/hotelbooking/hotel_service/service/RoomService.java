@@ -10,12 +10,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.beans.factory.annotation.Value;
 
 import com.hotelbooking.hotel_service.client.UserServiceClient;
 import com.hotelbooking.hotel_service.domain.ReviewWithUser;
@@ -336,6 +336,12 @@ public class RoomService {
         return false;
     }
 
-  
+    public boolean getIsAvailable(String roomId) {
+        Room room = roomRepository.findById(roomId).orElse(null);
+        if (room == null) {
+            throw new RuntimeException("Room not found with id: " + roomId);
+        }
+                return room.getIsAvailable();
+    }
 
 }

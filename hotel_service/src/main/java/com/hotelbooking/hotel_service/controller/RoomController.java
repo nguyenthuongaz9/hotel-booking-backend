@@ -99,10 +99,6 @@ public class RoomController {
         return deleted ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
 
-    // @GetMapping("/featured-reviews")
-    // public ResponseEntity<List<ReviewResponseDto>> getFeaturedReviews() {
-    // return reviewService.getTopReviewsForHomepage();
-    // }
 
     @DeleteMapping("/{roomId}/images/{imageId}")
     public ResponseEntity<?> deleteImage(
@@ -119,6 +115,17 @@ public class RoomController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error deleting image: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/{roomId}/isAvailable")
+    public ResponseEntity<?> isAvailableRoom(@PathVariable String roomId) {
+        try {
+            boolean isAvailable = roomService.getIsAvailable(roomId);
+            return ResponseEntity.ok(isAvailable);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error checking room availability: " + e.getMessage());
         }
     }
 
@@ -291,6 +298,5 @@ public class RoomController {
     public ResponseEntity<?> getOverallRating() {
         return reviewService.getOverallAverageRating();
     }
-    
 
 }

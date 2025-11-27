@@ -2,16 +2,19 @@ package com.hotelbooking.user_service.service;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+
 import com.hotelbooking.user_service.config.jwt.JwtUtils;
 import com.hotelbooking.user_service.dto.UserRole;
 import com.hotelbooking.user_service.mapper.UserMapper;
@@ -23,6 +26,8 @@ import com.hotelbooking.user_service.payload.TokenRefreshResponse;
 import com.hotelbooking.user_service.payload.UserRequest;
 import com.hotelbooking.user_service.payload.UserResponse;
 import com.hotelbooking.user_service.repository.UserRepository;
+
+import jakarta.annotation.PostConstruct;
 
 @Service
 public class UserService {
@@ -36,7 +41,7 @@ public class UserService {
     @Autowired
     private JwtUtils jwtUtils;
 
-    @Autowired 
+    @Autowired
     private UserMapper userMapper;
 
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -47,12 +52,10 @@ public class UserService {
             return ResponseEntity.badRequest().body("Email is required");
         }
 
-
         if (userRepository.findUserByEmail(user.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body("User already exists");
         }
 
- 
         String rawPassword = user.getPassword();
         if (rawPassword == null || rawPassword.isEmpty()) {
             return ResponseEntity.badRequest().body("Password is required");
@@ -61,15 +64,12 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(rawPassword));
         user.setCreatedAt(LocalDateTime.now());
 
-  
         User savedUser = userRepository.save(user);
 
-   
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(user.getEmail(), rawPassword));
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
- 
         UserResponse userResponse = userMapper.toUserResponse(savedUser);
         String accessToken = jwtUtils.generateJwtToken(user.getEmail());
         String refreshToken = jwtUtils.generateRefreshToken(user.getEmail());
@@ -91,24 +91,48 @@ public class UserService {
         return ResponseEntity.ok(userResponse);
     }
 
-    public ResponseEntity<?> login(LoginRequest loginRequest) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginRequest.getEmail(), loginRequest.getPassword() 
-                ));
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        String accessToken = jwtUtils.generateJwtToken(loginRequest.getEmail());
-        String refreshToken = jwtUtils.generateRefreshToken(loginRequest.getEmail());
-
-        Optional<User> userOptional = userRepository.findUserByEmail(loginRequest.getEmail());
-        if (userOptional.isEmpty()) {
-            return ResponseEntity.status(404).body("User not found");
+    @PostConstruct
+    public void initAdminUser() {
+        Optional<User> adminUser = userRepository.findUserByEmail("admin@example.com");
+        if (adminUser.isEmpty()) {
+            User admin = new User();
+            admin.setName("Admin");
+            admin.setEmail("admin@example.com");
+            admin.setPassword(passwordEncoder.encode("admin"));
+            admin.setPhone("000-000-0000");
+            admin.setRole(UserRole.ADMIN);
+            admin.setCreatedAt(LocalDateTime.now());
+            admin.setUpdatedAt(LocalDateTime.now());
+            userRepository.save(admin);
+            System.out.println("Admin user created successfully");
         }
+    }
 
-        User user = userOptional.get();
-        UserResponse userResponse = userMapper.toUserResponse(user);
-        return ResponseEntity.ok(new JwtResponse(accessToken, refreshToken, userResponse));
+    public ResponseEntity<?> login(LoginRequest loginRequest) {
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getEmail(),
+                            loginRequest.getPassword()));
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            String accessToken = jwtUtils.generateJwtToken(loginRequest.getEmail());
+            String refreshToken = jwtUtils.generateRefreshToken(loginRequest.getEmail());
+
+            Optional<User> userOptional = userRepository.findUserByEmail(loginRequest.getEmail());
+            if (userOptional.isEmpty()) {
+                return ResponseEntity.status(404).body("User not found");
+            }
+
+            User user = userOptional.get();
+            UserResponse userResponse = userMapper.toUserResponse(user);
+            return ResponseEntity.ok(new JwtResponse(accessToken, refreshToken, userResponse));
+
+        } catch (BadCredentialsException e) {
+            return ResponseEntity.status(401).body("Invalid email or password");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Login failed: " + e.getMessage());
+        }
     }
 
     public ResponseEntity<?> refreshToken(TokenRefreshRequest request) {
@@ -124,26 +148,26 @@ public class UserService {
         return ResponseEntity.status(401).body("Refresh token is invalid or expired");
     }
 
-    public ResponseEntity<?> getCurrentUser(){
+    public ResponseEntity<?> getCurrentUser() {
         try {
-           Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-           
-           if(authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())){
-            return ResponseEntity.status(401).body("User not authenticated");
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-           }
+            if (authentication == null || !authentication.isAuthenticated()
+                    || "anonymousUser".equals(authentication.getPrincipal())) {
+                return ResponseEntity.status(401).body("User not authenticated");
 
-           String email = authentication.getName();
-           Optional<User> userOptional = userRepository.findUserByEmail(email);
-           if(userOptional.isEmpty()){
-            return ResponseEntity.status(404).body("User not found");
-           }
+            }
 
-           User user = userOptional.get();
+            String email = authentication.getName();
+            Optional<User> userOptional = userRepository.findUserByEmail(email);
+            if (userOptional.isEmpty()) {
+                return ResponseEntity.status(404).body("User not found");
+            }
 
+            User user = userOptional.get();
 
-           UserResponse userResponse = userMapper.toUserResponse(user);
-           return ResponseEntity.ok(userResponse);
+            UserResponse userResponse = userMapper.toUserResponse(user);
+            return ResponseEntity.ok(userResponse);
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error retrieving user information");
         }
@@ -152,16 +176,16 @@ public class UserService {
     public ResponseEntity<?> getAllUsers(Pageable pageable, String search) {
         try {
             Page<User> usersPage;
-            
+
             if (search != null && !search.trim().isEmpty()) {
                 usersPage = userRepository.findByNameContainingOrEmailContainingIgnoreCase(
-                    search, search, pageable);
+                        search, search, pageable);
             } else {
                 usersPage = userRepository.findAll(pageable);
             }
-            
+
             Page<UserResponse> userResponses = usersPage.map(userMapper::toUserResponse);
-            
+
             return ResponseEntity.ok(userResponses);
         } catch (Exception e) {
             e.printStackTrace();
@@ -175,9 +199,9 @@ public class UserService {
             if (existingUserOpt.isEmpty()) {
                 return ResponseEntity.status(404).body("User not found");
             }
-            
+
             User existingUser = existingUserOpt.get();
-            
+
             if (userRequest.getName() != null) {
                 existingUser.setName(userRequest.getName());
             }
@@ -187,13 +211,13 @@ public class UserService {
             if (userRequest.getRole() != null) {
                 existingUser.setRole(userRequest.getRole());
             }
-            
+
             existingUser.setUpdatedAt(LocalDateTime.now());
             User updatedUser = userRepository.save(existingUser);
-            
+
             UserResponse userResponse = userMapper.toUserResponse(updatedUser);
             return ResponseEntity.ok(userResponse);
-            
+
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body("Error updating user: " + e.getMessage());
@@ -206,10 +230,10 @@ public class UserService {
             if (existingUserOpt.isEmpty()) {
                 return ResponseEntity.status(404).body("User not found");
             }
-            
+
             userRepository.deleteById(id);
             return ResponseEntity.ok("User deleted successfully");
-            
+
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body("Error deleting user: " + e.getMessage());
@@ -222,10 +246,10 @@ public class UserService {
             if (userOpt.isEmpty()) {
                 return ResponseEntity.status(404).body("User not found");
             }
-            
+
             UserResponse userResponse = userMapper.toUserResponse(userOpt.get());
             return ResponseEntity.ok(userResponse);
-            
+
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body("Error retrieving user: " + e.getMessage());

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import org.hibernate.sql.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,6 +23,7 @@ import com.hotelbooking.order_service.dto.OrderRequest;
 import com.hotelbooking.order_service.dto.OrderResponse;
 import com.hotelbooking.order_service.dto.OrderStatus;
 import com.hotelbooking.order_service.dto.PaginatedOrderResponse;
+import com.hotelbooking.order_service.dto.UpdateStatusOrderRequest;
 import com.hotelbooking.order_service.exception.ErrorResponse;
 import com.hotelbooking.order_service.exception.RoomNotAvailableException;
 import com.hotelbooking.order_service.service.OrderService;
@@ -55,7 +57,6 @@ public class OrderController {
                     log.error("Error type: {}", throwable.getClass().getName());
                     log.error("Error message: {}", throwable.getMessage());
 
-                    // Sử dụng constructor phù hợp của ErrorResponse
                     ErrorResponse errorResponse = new ErrorResponse();
                     errorResponse.setMessage(throwable.getMessage());
                     errorResponse.setTimestamp(LocalDateTime.now());
@@ -121,8 +122,8 @@ public class OrderController {
     }
 
     @PatchMapping("/{id}/payment-status")
-    public OrderResponse updatePaymentStatus(@PathVariable String id, @RequestBody String status) {
-        OrderResponse order = orderService.updatePaymentStatus(id, status);
+    public OrderResponse updatePaymentStatus(@PathVariable String id, @RequestBody UpdateStatusOrderRequest request) {
+        OrderResponse order = orderService.updatePaymentStatus(id, request);
         return order;
 
     }

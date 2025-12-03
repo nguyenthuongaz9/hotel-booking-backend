@@ -29,6 +29,7 @@ import com.hotelbooking.order_service.dto.PaymentRequest;
 import com.hotelbooking.order_service.dto.PaymentResponse;
 import com.hotelbooking.order_service.dto.PaymentStatus;
 import com.hotelbooking.order_service.dto.RoomResponse;
+import com.hotelbooking.order_service.dto.UpdateStatusOrderRequest;
 import com.hotelbooking.order_service.dto.UserResponse;
 import com.hotelbooking.order_service.exception.OrderNotFoundException;
 import com.hotelbooking.order_service.exception.RoomNotAvailableException;
@@ -50,6 +51,7 @@ public class OrderService {
     private final RoomServiceClient roomServiceClient;
     private final PaymentServiceClient paymentServiceClient;
     private final UserServiceClient userServiceClient;
+    private final EmailService emailService;
 
     public Mono<OrderResponse> createOrder(OrderRequest request) {
         log.info("=== START ORDER CREATION ===");
@@ -57,7 +59,6 @@ public class OrderService {
                 request.getUserId(), request.getRoomId(), request.getCheckIn(),
                 request.getCheckOut(), request.getTotalPrice());
 
-        // Validate request data
         if (request.getUserId() == null || request.getUserId().trim().isEmpty()) {
             return Mono.error(new IllegalArgumentException("User ID is required"));
         }
@@ -75,7 +76,6 @@ public class OrderService {
             return Mono.error(new IllegalArgumentException("Check-out date must be after check-in date"));
         }
 
-        // Tạo Mono cho conflicting orders
         Mono<Long> conflictingOrdersMono = Mono.fromCallable(() -> {
             try {
                 log.info("Checking conflicting orders for room: {}", request.getRoomId());
@@ -423,39 +423,30 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse updatePaymentStatus(String id, String paymentStatusJson) {
-        log.info("Updating payment status: {} to {}", id, paymentStatusJson);
+    public OrderResponse updatePaymentStatus(String id, UpdateStatusOrderRequest request) {
 
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new OrderNotFoundException("Order not found with id: " + id));
 
         try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            JsonNode jsonNode = objectMapper.readTree(paymentStatusJson);
-            String statusValue = jsonNode.get("status").asText();
+            order.setPaymentStatus(PaymentStatus.valueOf(request.getStatus()));
 
-            PaymentStatus newPaymentStatus = PaymentStatus.valueOf(statusValue.toUpperCase());
-            log.info("Converting payment status: {} to {}", statusValue, newPaymentStatus);
-
-            order.setPaymentStatus(newPaymentStatus);
-
-            if (newPaymentStatus == PaymentStatus.PAID && order.getStatus() == OrderStatus.PENDING) {
+            if (PaymentStatus.valueOf(request.getStatus()) == PaymentStatus.PAID && order.getStatus() == OrderStatus.PENDING) {
                 order.setStatus(OrderStatus.CONFIRMED);
                 log.info("Order {} auto-confirmed after payment", id);
             }
 
             Order updatedOrder = orderRepository.save(order);
-            log.info("Payment status updated successfully: {} to {}", id, newPaymentStatus);
+            emailService.sendPaymentSuccessEmail(updatedOrder.getId(), request); 
+
             return mapToResponse(updatedOrder);
 
-        } catch (IOException e) {
-            log.error("Invalid JSON format: {}", paymentStatusJson);
-            throw new IllegalArgumentException("Invalid JSON format: " + paymentStatusJson);
         } catch (IllegalArgumentException e) {
-            log.error("Invalid payment status in JSON: {}", paymentStatusJson);
-            throw new IllegalArgumentException("Invalid payment status in JSON: " + paymentStatusJson);
-        }
+            log.error("Invalid payment status: {}", request.getStatus());
+            throw new IllegalArgumentException("Invalid payment status: " + request.getStatus());
+        } 
     }
+    
 
     @Transactional
     public void deleteOrder(String id) {

@@ -81,13 +81,13 @@ public class OrderController {
     }
 
     @GetMapping("/user/{userId}/with-rooms")
-    @CircuitBreaker(name = "hotel-service", fallbackMethod = "fallbackMethodWithUserId")
+    @CircuitBreaker(name = "hotel-service", fallbackMethod = "fallbackGetOrdersByUserIdWithRooms")
     public Flux<OrderResponse> getOrdersByUserIdWithRooms(@PathVariable String userId) {
         return orderService.getOrdersByUserIdWithRoomInfo(userId);
     }
 
     @GetMapping("/user/{userId}/with-rooms-async")
-    @CircuitBreaker(name = "hotel-service", fallbackMethod = "fallbackMethodWithUserId")
+    @CircuitBreaker(name = "hotel-service", fallbackMethod = "fallbackGetOrdersByUserIdWithRoomsAsync")
     public CompletableFuture<ResponseEntity<List<OrderResponse>>> getOrdersByUserIdWithRoomsAsync(
             @PathVariable String userId) {
         return orderService.getOrdersByUserIdWithRoomInfoAsync(userId)
@@ -101,7 +101,7 @@ public class OrderController {
     }
 
     @GetMapping("/{id}/with-room")
-    @CircuitBreaker(name = "hotel-service", fallbackMethod = "fallbackMethodWithUserId")
+    @CircuitBreaker(name = "hotel-service", fallbackMethod = "fallbackGetOrderByIdWithRoom")
     public ResponseEntity<OrderResponse> getOrderByIdWithRoom(@PathVariable String id) {
         OrderResponse order = orderService.getOrderByIdWithRoomInfo(id);
         return ResponseEntity.ok(order);
@@ -173,9 +173,31 @@ public class OrderController {
         return ResponseEntity.ok(Map.of("available", isAvailable));
     }
 
-    public String fallbackMethodWithUserId(String userId, RuntimeException runtimeException) {
+    public Flux<OrderResponse> fallbackGetOrdersByUserIdWithRooms(String userId, RuntimeException runtimeException) {
+        log.error("Circuit breaker activated for getOrdersByUserIdWithRooms: {}", runtimeException.getMessage());
+        return Flux.empty();
+    }
 
-        return "Opps! Something went wrong, please order after some time!";
+    public CompletableFuture<ResponseEntity<List<OrderResponse>>> fallbackGetOrdersByUserIdWithRoomsAsync(String userId, RuntimeException runtimeException) {
+        log.error("Circuit breaker activated for getOrdersByUserIdWithRoomsAsync: {}", runtimeException.getMessage());
+        ErrorResponse errorResponse = new ErrorResponse();
+        errorResponse.setMessage("Hotel service is temporarily unavailable. Please try again later.");
+        errorResponse.setTimestamp(LocalDateTime.now());
+        errorResponse.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+        errorResponse.setError("Service Unavailable");
+        return CompletableFuture.completedFuture(
+            ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(List.of())
+        );
+    }
+
+    public ResponseEntity<OrderResponse> fallbackGetOrderByIdWithRoom(String id, RuntimeException runtimeException) {
+        log.error("Circuit breaker activated for getOrderByIdWithRoom: {}", runtimeException.getMessage());
+        ErrorResponse errorResponse = new ErrorResponse();
+        errorResponse.setMessage("Hotel service is temporarily unavailable. Please try again later.");
+        errorResponse.setTimestamp(LocalDateTime.now());
+        errorResponse.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+        errorResponse.setError("Service Unavailable");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(null);
     }
 
     @GetMapping("/count")

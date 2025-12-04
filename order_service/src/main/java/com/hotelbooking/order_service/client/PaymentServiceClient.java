@@ -33,7 +33,7 @@ public class PaymentServiceClient {
         log.info("Creating payment for order: {}", paymentRequest.getOrderId());
         
         return webClient.post()
-                .uri("/api/payments/create")
+                .uri("/api/payment/create")
                 .bodyValue(paymentRequest)
                 .retrieve()
                 .onStatus(status -> status.is4xxClientError(), response -> {
@@ -54,7 +54,7 @@ public class PaymentServiceClient {
         log.info("Getting payment status for: {}", paymentId);
         
         return webClient.get()
-                .uri("/api/payments/{paymentId}/status", paymentId)
+                .uri("/api/payment/status/{orderId}", paymentId)
                 .retrieve()
                 .bodyToMono(PaymentResponse.class)
                 .timeout(Duration.ofSeconds(5));
